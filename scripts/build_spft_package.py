@@ -15,8 +15,10 @@ SELECTED = {
 }
 SPARSE_MAGIC = 0xED26FF3A
 
+
 def parse_num(v: str) -> int:
     return int(v.strip(), 0)
+
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -24,6 +26,7 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
 
 def expanded_image_size(path: Path):
     with path.open("rb") as f:
@@ -34,6 +37,7 @@ def expanded_image_size(path: Path):
             raise RuntimeError(f"Unsupported sparse image version {major}: {path}")
         return blk_sz * total_blks, "android-sparse"
     return path.stat().st_size, "raw"
+
 
 def find_scatter(stock_dir: Path) -> Path:
     cands = sorted(stock_dir.glob("*scatter*.txt"))
@@ -46,30 +50,48 @@ def find_scatter(stock_dir: Path) -> Path:
         for c in cands:
             print(" ", c)
         print("Using:", cands[0])
+    else:
+        print("Using scatter:", cands[0])
     return cands[0]
 
+
 def split_scatter(text: str):
-    m = re.search(r"(?m)^- partition_index:\s*", text)
-    if not m:
-        raise RuntimeError("Scatter partition blocks not recognized")
-    prefix = text[:m.start()]
-    body = text[m.start():]
-    starts = [x.start() for x in re.finditer(r"(?m)^- partition_index:\s*", body)]
+    # MTK scatter variants differ in indentation. Accept both:
+    #   - partition_index: SYS0
+    #     - partition_index: SYS0
+    # and tolerate an optional UTF-8 BOM at the beginning of the file.
+    text = text.lstrip("\ufeff")
+    block_re = re.compile(r"(?m)^[ \t]*-[ \t]*partition_index[ \t]*:[ \t]*")
+    matches = list(block_re.finditer(text))
+    if not matches:
+        # Provide a useful diagnostic instead of a generic parser failure.
+        preview = "\n".join(text.splitlines()[:40])
+        raise RuntimeError(
+            "Scatter partition blocks not recognized. "
+            "The selected file may use a different SP Flash Tool v6 format.\n"
+            "Selected scatter preview:\n" + preview
+        )
+
+    prefix = text[:matches[0].start()]
     blocks = []
-    for i, start in enumerate(starts):
-        end = starts[i+1] if i+1 < len(starts) else len(body)
-        blocks.append(body[start:end])
+    for i, match in enumerate(matches):
+        start = match.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        blocks.append(text[start:end])
     return prefix, blocks
+
 
 def field(block: str, name: str):
     m = re.search(rf"(?m)^\s*{re.escape(name)}:\s*(.*?)\s*$", block)
     return m.group(1) if m else None
+
 
 def set_field(block: str, name: str, value: str) -> str:
     pat = rf"(?m)^(\s*{re.escape(name)}:\s*).*?$"
     if not re.search(pat, block):
         raise RuntimeError(f"Missing field {name!r} in block {field(block,'partition_name')}")
     return re.sub(pat, lambda m: m.group(1) + value, block, count=1)
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -179,6 +201,7 @@ Project-generation runtime vbmeta digest:
     print("Created:", out)
     print("Scatter:", out_scatter)
     print("Use: Download Only")
+
 
 if __name__ == "__main__":
     main()
