@@ -7,8 +7,16 @@ import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-TARGET_STORAGE_NAME = "UFS"
-TARGET_STORAGE_VALUE = "HW_STORAGE_UFS"
+# The official Alldocube XML scatter carries both EMMC and UFS storage layouts.
+# SP Flash Tool v6 may populate its image table from the first layout before the
+# DA has connected to a device and identified the actual storage.  Therefore a
+# stock-style package must retain the selected image entries in both layouts.
+# The DA resolves the real hardware storage at connection time.  On the tested
+# tablet the actual super block device is /dev/block/sdc60 (UFS).
+STOCK_STORAGE_LAYOUTS = {
+    "EMMC": "HW_STORAGE_EMMC",
+    "UFS": "HW_STORAGE_UFS",
+}
 
 IMAGE_MAP = {
     "vbmeta_a": ("vbmeta_a.img", "vbmeta.img"),
@@ -48,8 +56,6 @@ def copy_tree_if_exists(src: Path, dst: Path) -> None:
 
 
 def indent_xml(elem: ET.Element, level: int = 0) -> None:
-    # Python's ElementTree.indent() is available on modern Python, but keep this
-    # repository helper compatible with older Python 3 installations too.
     i = "\n" + level * "  "
     if len(elem):
         if not elem.text or not elem.text.strip():
@@ -71,7 +77,10 @@ def main() -> None:
     ap.add_argument("--project-dir", required=True, type=Path,
                     help="Verified project package containing *_a.img and super.img")
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--storage", choices=["UFS"], default="UFS")
+    # Kept for command-line compatibility and to document the tested device.
+    # The output XML intentionally retains both stock storage branches.
+    ap.add_argument("--storage", choices=["UFS"], default="UFS",
+                    help="Actual tested device storage. XML retains both stock layouts for SPFT v6 table compatibility.")
     args = ap.parse_args()
 
     stock = args.stock_dir.resolve()
@@ -98,63 +107,66 @@ def main() -> None:
     out.mkdir(parents=True)
     (out / "download_agent").mkdir()
 
-    # Preserve the stock Download-XML entry point and exact DA/XSD.
     shutil.copy2(flash_src, out / "download_agent" / "flash.xml")
     shutil.copy2(da_src, out / "download_agent" / "DA_BR.bin")
     shutil.copy2(xsd_src, out / "download_agent" / "flash.xsd")
-
-    # DB is not part of the selected partition writes, but copying it retains
-    # the official package shape and diagnostic database files.
     copy_tree_if_exists(stock / "DB", out / "DB")
 
     tree = ET.parse(scatter_src)
     root = tree.getroot()
 
-    enabled = set()
-    seen_target = set()
+    enabled_by_layout: dict[str, set[str]] = {name: set() for name in STOCK_STORAGE_LAYOUTS}
+    seen_by_layout: dict[str, set[str]] = {name: set() for name in STOCK_STORAGE_LAYOUTS}
 
     for storage_node in root.findall("storage_type"):
         storage_name = storage_node.get("name", "")
+        expected_storage_value = STOCK_STORAGE_LAYOUTS.get(storage_name)
+
         for part_node in storage_node.findall("partition_index"):
             part_name = text(part_node, "partition_name")
             storage_value = text(part_node, "storage")
 
-            # Default-safe behavior: nothing is downloadable unless it is one
-            # of our eight selected UFS partitions.
+            # Default safe: every partition is disabled first. This disables
+            # preloader, userdata, metadata, identity/calibration partitions,
+            # B-slot partitions, and everything else not explicitly selected.
             if part_node.find("file_name") is not None:
                 set_text(part_node, "file_name", "NONE")
             if part_node.find("is_download") is not None:
                 set_text(part_node, "is_download", "false")
 
+            # Mirror the stock firmware's dual-storage presentation: the same
+            # selected image filenames exist in both EMMC and UFS branches.
+            # SPFT/DA selects the physically present storage after connection.
             if (
-                storage_name == TARGET_STORAGE_NAME
-                and storage_value == TARGET_STORAGE_VALUE
+                expected_storage_value is not None
+                and storage_value == expected_storage_value
                 and part_name in IMAGE_MAP
             ):
                 _, dst_name = IMAGE_MAP[part_name]
                 set_text(part_node, "file_name", dst_name)
                 set_text(part_node, "is_download", "true")
-                enabled.add(part_name)
-                seen_target.add(part_name)
+                enabled_by_layout[storage_name].add(part_name)
+                seen_by_layout[storage_name].add(part_name)
 
-    missing = sorted(set(IMAGE_MAP) - seen_target)
-    if missing:
-        raise RuntimeError("UFS XML scatter missing required partitions: " + ", ".join(missing))
+    required = set(IMAGE_MAP)
+    for layout in STOCK_STORAGE_LAYOUTS:
+        missing = sorted(required - seen_by_layout[layout])
+        if missing:
+            raise RuntimeError(
+                f"{layout} XML scatter missing required partitions: " + ", ".join(missing)
+            )
+        if enabled_by_layout[layout] != required:
+            raise RuntimeError(
+                f"Unexpected enabled set for {layout}: " + ", ".join(sorted(enabled_by_layout[layout]))
+            )
 
-    if enabled != set(IMAGE_MAP):
-        raise RuntimeError("Unexpected enabled set: " + ", ".join(sorted(enabled)))
-
-    # Keep XML simple and deterministic while retaining the stock schema.
     indent_xml(root)
     scatter_out = out / "MT6789_Android_scatter.xml"
     tree.write(scatter_out, encoding="utf-8", xml_declaration=True)
 
-    # Copy selected payloads to the same generic filenames used by stock.
     for part, (src_name, dst_name) in IMAGE_MAP.items():
         shutil.copy2(project / src_name, out / dst_name)
 
-    # Never copy stock scatter_checksum.xml: it contains checksums for the
-    # original stock images and would be stale for our modified package.
     checksum_note = """scatter_checksum.xml intentionally NOT copied.
 
 The stock checksum file contains ADD checksums for the original stock images.
@@ -167,7 +179,15 @@ with XML scatter packages. Do not reuse the original stock checksum values.
 The package can be inspected in SP Flash Tool v6 by selecting:
   download_agent/flash.xml
 
-Use Download Only. The XML enables only:
+Use Download Only.
+
+The official stock XML contains both EMMC and UFS layouts. This custom XML
+retains the same eight selected image entries in BOTH layouts so SP Flash Tool
+can populate its image table before the DA identifies the actual device
+storage. The tested tablet is UFS (/dev/block/sdc60), so the DA will use the
+UFS branch when connected.
+
+Only these partition names have image files enabled in either layout:
   vbmeta_a
   vbmeta_system_a
   vbmeta_vendor_a
@@ -177,8 +197,7 @@ Use Download Only. The XML enables only:
   dtbo_a
   super
 
-All eMMC entries and all other UFS partitions, including preloader and
-userdata, are disabled and use file_name=NONE.
+Preloader, userdata, and every other partition remain disabled in both layouts.
 """
     (out / "REGENERATE-SCATTER-CHECKSUM.txt").write_text(checksum_note, encoding="utf-8")
 
@@ -191,10 +210,14 @@ Load in SP Flash Tool v6:
 Mode:
   Download Only
 
-Target physical storage:
-  UFS
+Tested device physical storage:
+  UFS (/dev/block/sdc60)
 
-Enabled partitions:
+Stock-compatible XML presentation:
+  EMMC and UFS branches both contain the same eight selected image entries.
+  SP Flash Tool / DA resolves the actual storage at device connection time.
+
+Enabled partition names:
   vbmeta_a
   vbmeta_system_a
   vbmeta_vendor_a
@@ -204,7 +227,7 @@ Enabled partitions:
   dtbo_a
   super
 
-Explicitly not flashed:
+Explicitly not flashed in either layout:
   preloader / preloader_backup
   userdata
   metadata
@@ -215,14 +238,12 @@ Explicitly not flashed:
   otp
   frp
   all B-slot physical partitions
-  all eMMC scatter entries
 
 Before distribution, regenerate scatter_checksum.xml for these final files
 using a MediaTek CheckSum Generate v6 utility. Never reuse the stock checksum.
 """
     (out / "FLASHING-NOTES.txt").write_text(notes, encoding="utf-8")
 
-    # Independent SHA-256 manifest for our own reproducibility.
     manifest_paths = []
     for p in sorted(out.rglob("*")):
         if p.is_file() and p.name != "SHA256SUMS.txt":
@@ -233,7 +254,9 @@ using a MediaTek CheckSum Generate v6 utility. Never reuse the stock checksum.
     print("Created stock-style SP Flash Tool v6 package:", out)
     print("Download-XML:", out / "download_agent" / "flash.xml")
     print("Scatter XML:", scatter_out)
-    print("Enabled UFS partitions:", ", ".join(sorted(enabled)))
+    print("Actual tested device storage: UFS")
+    print("Enabled image entries in EMMC:", ", ".join(sorted(enabled_by_layout["EMMC"])))
+    print("Enabled image entries in UFS:", ", ".join(sorted(enabled_by_layout["UFS"])))
     print("IMPORTANT: regenerate scatter_checksum.xml before calling the package final.")
 
 
