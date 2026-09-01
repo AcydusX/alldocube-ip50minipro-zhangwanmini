@@ -1,0 +1,49 @@
+root:
+  partition: vbmeta_a
+  algorithm: SHA256_RSA2048
+  rollback_index: 0
+  flags: 0
+  public_key_sha1: 86e98d4cc425d7a56ea1933ac5d40e4f9978586a
+  trusted_by: custom_re_signed_lk_a
+
+chains:
+  - partition: boot
+    rollback_location: 3
+    public_key_sha1: 9d808b0995768d0677fccb1efcddb7cf9e153d99
+    source: stock
+  - partition: vbmeta_system
+    rollback_location: 2
+    public_key_sha1: 86e98d4cc425d7a56ea1933ac5d40e4f9978586a
+    descriptors:
+      - type: hashtree
+        partition: system
+        root_digest: ae655bf10df2fafe8819325e5ba172da37e8bacde867926345fa58718c5b5e36
+  - partition: vbmeta_vendor
+    rollback_location: 4
+    public_key_sha1: 86e98d4cc425d7a56ea1933ac5d40e4f9978586a
+    descriptors:
+      - type: hashtree
+        partition: vendor
+        root_digest: d336d3a125eccbfafd209dd7ec11a8e0b6a775b58851a4a88cfd0e05a691a0ef
+
+direct:
+  - partition: dtbo
+    type: hash
+    image_size: 62720
+    source: stock_descriptor
+  - partition: vendor_boot
+    type: hash
+    image_size: 24162304
+    digest: b985daa0ba256af9446d611c5d6acef9d8625bc72a557d9035d4535053576a4a
+  - partition: odm_dlkm
+    type: hashtree
+    source: stock_descriptor
+  - partition: vendor_dlkm
+    type: hashtree
+    source: stock_descriptor
+
+runtime_digest:
+  algorithm: sha256
+  size: 9536
+  value: 2acf48aed4897c1a883345805d0ab23c23c06936a1fb23743e40c87124231898
+  matched_device_before_relock: true

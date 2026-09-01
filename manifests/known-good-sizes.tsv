@@ -1,0 +1,13 @@
+artifact	bytes	hex_or_note
+system_a.img	3354951680	0xC7F88000
+vendor_a.img	1085009920	0x40ABF000
+vbmeta_system_a.img	4096	0x1000
+vbmeta_vendor_a.img	4096	0x1000
+vbmeta_a.img	8192	0x2000
+odm_dlkm_a.img	348160	0x55000
+vendor_dlkm_a.img	38830080	0x2508000
+boot_a.img	67108864	0x4000000
+# dtbo file is physical 8 MiB; top descriptor authenticates first 62720 bytes
+dtbo_a.img	8388608	physical image
+vendor_boot_a.img	67108864	physical image; descriptor covers 24162304
+lk-custom-avb.img	2163920	inside 0x400000 lk partition

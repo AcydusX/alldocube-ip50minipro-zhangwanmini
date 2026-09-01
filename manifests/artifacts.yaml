@@ -1,0 +1,72 @@
+project: alldocube-iplay50-mini-pro-engineering
+trust_generation: custom-avb-root-01
+runtime_vbmeta:
+  hash_algorithm: sha256
+  size: 9536
+  digest: 2acf48aed4897c1a883345805d0ab23c23c06936a1fb23743e40c87124231898
+
+artifacts:
+  system_payload:
+    name: KPOC-GSI-ANDROID16-CANDIDATE-01.img
+    size: 3301928960
+    sha256: 1750acea56b33cbc36c6a0e640da9840f2ffb2c356bb3be13f058ea685622d3d
+  system_avb:
+    deployment_name: system_a.img
+    size: 3354951680
+    sha256: 9777805e7815618b314f048fc2ea199e8f0acbb907dd1a96c3d7e0cfefad2941
+    root_digest: ae655bf10df2fafe8819325e5ba172da37e8bacde867926345fa58718c5b5e36
+  vendor_payload:
+    name: STOCK-VENDOR-KEYMINT-HYBRID-03-NOAVB.img
+    size: 1067798528
+    sha256: e25c3bf669a5d4599de07cedaefada3b181731b7ab3c1d257c102a1b55279486
+  vendor_avb:
+    deployment_name: vendor_a.img
+    size: 1085009920
+    sha256: 877c0748ccce4be7be58d4c14aec5b199945c4c5b770fc569a6134e9d411149b
+    root_digest: d336d3a125eccbfafd209dd7ec11a8e0b6a775b58851a4a88cfd0e05a691a0ef
+  vendor_boot:
+    deployment_name: vendor_boot_a.img
+    size: 67108864
+    sha256: 720e38b23e861b51320374538d57046a425bd3ca6a5e07679c202dce7bc9f20b
+    avb_authenticated_size: 24162304
+    avb_digest: b985daa0ba256af9446d611c5d6acef9d8625bc72a557d9035d4535053576a4a
+  boot:
+    deployment_name: boot_a.img
+    size: 67108864
+    sha256: e9a502385e79a7be9b69663fd056e09f86ed8fa6d582a2438be7de94cd82890d
+  dtbo:
+    deployment_name: dtbo_a.img
+    size: 8388608
+    sha256: 0f529397c1b1f372b55cac31c9020e0662dce4445a0c927193b424413068df9a
+    avb_authenticated_size: 62720
+  vbmeta_system:
+    deployment_name: vbmeta_system_a.img
+    size: 4096
+    sha256: 2ebdc1347bd33876052d247285dba951130bc1f83f4e3963b44965505ad8a99a
+  vbmeta_vendor:
+    deployment_name: vbmeta_vendor_a.img
+    size: 4096
+    sha256: 1eb4c94bd76ab7e82162f2275a287298c211d6e9ac1a33a8cfdba0903209120e
+  vbmeta_top:
+    deployment_name: vbmeta_a.img
+    size: 8192
+    sha256: 04d561a8bff4515d321e8bb83d214f410adf4ec0857aa3c36faea1380a64f64c
+  lk_custom:
+    deployment_name: lk-custom-avb.img
+    size: 2163920
+    sha256: b1d89c6139757cbd67c25007e9f8a48fbaee57b7d15d0f5a5a74aed20bd2e542
+  odm_dlkm:
+    deployment_name: odm_dlkm_a.img
+    size: 348160
+    sha256: a2cb107795b92c9b27e278b6345778ede3f40cbbdf3ea935ac34c1b7452bd71a
+  vendor_dlkm:
+    deployment_name: vendor_dlkm_a.img
+    size: 38830080
+    sha256: 40b64e148ec203a7842763a0e101ff32124c385d0ff03b4dd6fb60d1b0fc74da
+
+custom_avb_public_key:
+  rsa_bits: 2048
+  avbpubkey_size: 520
+  avbpubkey_sha1: 86e98d4cc425d7a56ea1933ac5d40e4f9978586a
+  avbpubkey_sha256: b6abf2642a0cda00c4d7773b9d8a709abc44e5273f43a8e9b2a589b0452de6d1
+  modulus_sha256: d258ae705de48e1f6f257564a40b24b697fec418a4868fcc5c292faa43fa8f3a

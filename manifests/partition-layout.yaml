@@ -1,0 +1,43 @@
+super:
+  size: 9663676416
+  hex: 0x240000000
+  metadata_version: "10.2"
+  metadata_max_size: 65536
+  metadata_slot_count: 3
+  virtual_ab: true
+  groups:
+    main_a_max: 9661579264
+    main_b_max: 9661579264
+
+logical_final:
+  system_a:
+    size: 3354951680
+    hex: 0xC7F88000
+  vendor_a:
+    size: 1085009920
+    hex: 0x40ABF000
+  product_a:
+    size_observed_before_final: 2529398784
+    hex: 0x96C39000
+    runtime_mount_status: unused_as_separate_mount
+    runtime_product_path: /system/product
+  vendor_dlkm_a:
+    size: 38830080
+    hex: 0x2508000
+  odm_dlkm_a:
+    size: 348160
+    hex: 0x55000
+
+boot_critical:
+  lk_a:
+    size: 4194304
+    type: raw
+    custom_image_flashed_during_hardware_gate: true
+  lk_b:
+    size: 4194304
+    type: raw
+    left_stock_during_custom_lk_gate: true
+  boot_a:
+    size: 67108864
+  vendor_boot_a:
+    size: 67108864
