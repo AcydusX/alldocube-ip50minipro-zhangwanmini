@@ -1,0 +1,26 @@
+device:
+  vendor: Alldocube
+  model: iPlay 50 mini Pro
+  product: iPlay_50_mini_Pro
+  board: tb8781p1_64
+  soc:
+    manufacturer: Mediatek
+    model: MT6789
+    family_notes: "Project materials also reference MT8781 naming."
+  stock_firmware: iPlay50_mini_Pro_V1.0_20260302
+  vendor_first_api_level: 31
+  dynamic_partitions: true
+  virtual_ab: true
+  final_android:
+    release: 16
+    sdk: 36
+    build_id: BP4A.251205.006
+    incremental: "14401865"
+    fingerprint: google/gsi_gms_arm64/gsi_arm64:16/BP4A.251205.006/14401865:user/release-keys
+    security_patch: 2025-12-05
+  vendor_runtime:
+    fingerprint: Alldocube/iPlay_50_mini_Pro/iPlay_50_mini_Pro:13/TP1A.220624.014/1687767892:user/release-keys
+    reported_release: 12
+    security_patch: 2026-01-05
+  final_slot: a
+  recovery_note: "Final locked stack is stock-derived vendor_boot/KPOC, not TWRP."
