@@ -1,0 +1,31 @@
+# Never commit private signing material
+*.pem
+*.key
+keys/
+secrets/
+
+# Firmware / partition images are large and device-specific
+*.img
+*.bin
+*.raw
+*.sparse
+*.lz4
+*.cpio
+*.zip
+
+# Exceptions: documentation can mention names/hashes; binaries stay external.
+
+# Work directories
+work/
+tmp/
+out/
+extract/
+mount/
+__pycache__/
+*.pyc
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
