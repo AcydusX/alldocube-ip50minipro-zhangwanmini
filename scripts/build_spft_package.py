@@ -14,6 +14,10 @@ SELECTED = {
     "super": (None, "super.img"),
 }
 SPARSE_MAGIC = 0xED26FF3A
+STORAGE_MAP = {
+    "EMMC": "HW_STORAGE_EMMC",
+    "UFS": "HW_STORAGE_UFS",
+}
 
 
 def parse_num(v: str) -> int:
@@ -56,22 +60,16 @@ def find_scatter(stock_dir: Path) -> Path:
 
 
 def split_scatter(text: str):
-    # MTK scatter variants differ in indentation. Accept both:
-    #   - partition_index: SYS0
-    #     - partition_index: SYS0
-    # and tolerate an optional UTF-8 BOM at the beginning of the file.
     text = text.lstrip("\ufeff")
     block_re = re.compile(r"(?m)^[ \t]*-[ \t]*partition_index[ \t]*:[ \t]*")
     matches = list(block_re.finditer(text))
     if not matches:
-        # Provide a useful diagnostic instead of a generic parser failure.
         preview = "\n".join(text.splitlines()[:40])
         raise RuntimeError(
             "Scatter partition blocks not recognized. "
             "The selected file may use a different SP Flash Tool v6 format.\n"
             "Selected scatter preview:\n" + preview
         )
-
     prefix = text[:matches[0].start()]
     blocks = []
     for i, match in enumerate(matches):
@@ -99,6 +97,11 @@ def main():
     ap.add_argument("--deploy-dir", required=True, type=Path)
     ap.add_argument("--super", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
+    ap.add_argument(
+        "--storage",
+        choices=sorted(STORAGE_MAP),
+        help="Target physical storage layout. Required when the scatter contains both eMMC and UFS layouts.",
+    )
     ap.add_argument("--no-hash", action="store_true")
     ap.add_argument("--show-super-region", action="store_true")
     args = ap.parse_args()
@@ -112,22 +115,49 @@ def main():
     raw = scatter.read_text(encoding="utf-8", errors="replace")
     prefix, blocks = split_scatter(raw)
 
+    selected_blocks = [b for b in blocks if field(b, "partition_name") in SELECTED]
+    available_storages = sorted({field(b, "storage") for b in selected_blocks if field(b, "storage")})
+    print("Scatter storage layouts:", ", ".join(available_storages) or "unknown")
+
+    if args.storage:
+        target_storage = STORAGE_MAP[args.storage]
+        if target_storage not in available_storages:
+            raise RuntimeError(
+                f"Requested --storage {args.storage}, but {target_storage} was not found in the selected scatter blocks"
+            )
+    else:
+        if len(available_storages) != 1:
+            raise RuntimeError(
+                "Scatter contains multiple physical storage layouts. Re-run with exactly one of: "
+                "--storage EMMC or --storage UFS.\n"
+                "Determine the actual device storage first; do not flash a scatter with both layouts enabled."
+            )
+        target_storage = available_storages[0]
+
+    print("Target storage:", target_storage)
+
     scatter_by_name = {}
     for b in blocks:
         name = field(b, "partition_name")
-        if name:
+        storage = field(b, "storage")
+        if name in SELECTED and storage == target_storage:
+            if name in scatter_by_name:
+                raise RuntimeError(f"Duplicate {name} block for target storage {target_storage}")
             scatter_by_name[name] = b
 
     missing = [p for p in SELECTED if p not in scatter_by_name]
     if missing:
-        raise RuntimeError("Stock scatter lacks required partitions: " + ", ".join(missing))
+        raise RuntimeError(
+            f"Target storage {target_storage} lacks required partitions: " + ", ".join(missing)
+        )
 
     sb = scatter_by_name["super"]
     sstart = field(sb, "physical_start_addr") or field(sb, "linear_start_addr")
     ssize = field(sb, "partition_size")
-    print(f"SUPER region: start={sstart} size={ssize} ({parse_num(ssize)} bytes)")
+    sregion = field(sb, "region")
+    print(f"SUPER region: storage={target_storage} region={sregion} start={sstart} size={ssize} ({parse_num(ssize)} bytes)")
     if args.show_super_region:
-        print("Use this start/size in SP Flash Tool Readback, region EMMC_USER.")
+        print(f"Use this start/size for a {target_storage} super readback in region {sregion}.")
 
     sources = {}
     for part, (src_name, out_name) in SELECTED.items():
@@ -153,7 +183,8 @@ def main():
     new_blocks = []
     for b in blocks:
         name = field(b, "partition_name")
-        if name in SELECTED:
+        storage = field(b, "storage")
+        if name in SELECTED and storage == target_storage:
             b = set_field(b, "file_name", SELECTED[name][1])
             b = set_field(b, "is_download", "true")
         else:
@@ -164,26 +195,24 @@ def main():
     out_scatter = out / scatter.name.replace(".txt", "_PROJECT.txt")
     out_scatter.write_text(prefix + "".join(new_blocks), encoding="utf-8")
 
+    enabled_names = "\n".join(f"  {name}" for name in SELECTED)
     notes = f"""Alldocube iPlay 50 mini Pro - SP Flash Tool project package
 
-Enabled partitions:
-  lk_a
-  boot_a
-  dtbo_a
-  vendor_boot_a
-  vbmeta_a
-  vbmeta_system_a
-  vbmeta_vendor_a
-  super
+Target physical storage:
+  {target_storage}
 
-All other scatter entries are disabled and file_name=NONE.
+Enabled partitions on that storage layout only:
+{enabled_names}
+
+All other scatter entries, including the alternate storage layout, are disabled and file_name=NONE.
 
 IMPORTANT:
 - Use SP Flash Tool: Download Only.
 - Do NOT use Format All + Download.
 - Do NOT enable preloader unless doing deliberate stock recovery.
+- userdata, metadata, NVRAM/NVDATA, calibration and identity partitions are not part of this package.
 - lk_b is intentionally not overwritten.
-- super.img must be the physical super image containing the final dynamic layout.
+- super.img is the physical super image containing the final dynamic layout.
 - Keep the full stock firmware separately for recovery.
 
 Project-generation runtime vbmeta digest:
@@ -200,6 +229,7 @@ Project-generation runtime vbmeta digest:
 
     print("Created:", out)
     print("Scatter:", out_scatter)
+    print("Target storage:", target_storage)
     print("Use: Download Only")
 
 
